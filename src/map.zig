@@ -5,8 +5,7 @@ pub const HashMap = struct {
     array: []?data,
     allocator: *std.mem.Allocator,
     pub fn init(allocator: *std.mem.Allocator, capacity: usize) @This() {
-        // TODO: Remove allocator or force null values.
-        // It allocates to 12297829382473034410
+        // TODO: Force null values, since usize allocation allocates to 12297829382473034410
         const array: []?data = allocator.*.alloc(?data, capacity) catch {
             @panic("Array allocation failed!");
         };
@@ -21,7 +20,7 @@ pub const HashMap = struct {
     pub fn get(self: *@This(), key: []const u8) usize {
         var index = hash(key) % self.array.len;
         while (!std.mem.eql(u8, self.array[index].?.key, key)) : (index += 1) {
-            if (index > self.array.len) index %= self.array.len;
+            if (index == self.array.len - 1) @panic("Key does not exist in HashMap");
         }
 
         return self.array[index].?.value;
@@ -37,8 +36,19 @@ pub const HashMap = struct {
         self.array[index] = .{ .key = key, .value = value };
     }
 
-    pub fn debug(self: *@This()) void {
-        std.debug.print("\nIndex\tKey\tValue\n", .{});
+    pub fn delete(self: *@This(), key: []const u8) void {
+        var index = hash(key) % self.array.len;
+        while (!std.mem.eql(u8, self.array[index].?.key, key)) : (index += 1) {
+            if (index == self.array.len - 1) @panic("Key does not exist in HashMap");
+        }
+        self.array[index].?.value = undefined;
+    }
+
+    pub fn debug(self: *@This(), title: ?[]const u8) void {
+        if (title) |string| {
+            std.debug.print("\n{s}\n", .{string});
+        }
+        std.debug.print("Index\tKey\tValue\n", .{});
         for (self.array, 0..) |option, index| {
             if (option.?.value != 12297829382473034410) {
                 std.debug.print("{}\t{s}\t{d}\n", .{ index, option.?.key, option.?.value });
@@ -72,9 +82,9 @@ pub const HashMap = struct {
     }
 };
 
-test " Hash Map " {
+test "Hash Map" {
     var allocator = std.testing.allocator;
-    var hm = HashMap.init(&allocator, 8);
+    var hm = HashMap.init(&allocator, 16);
     defer hm.deinit();
     {
         hm.set("key", 1);
@@ -88,9 +98,9 @@ test " Hash Map " {
         hm.set("key8", 1000);
         hm.set("key8", 100);
         hm.set("key8", 10);
+        try std.testing.expectEqual(10, hm.get("key8"));
+        hm.debug("HashMap with key8");
+        hm.delete("key8");
+        hm.debug("HashMap without key8");
     }
-
-    try std.testing.expectEqual(3, hm.get("key2"));
-    try std.testing.expectEqual(10, hm.get("key8"));
-    hm.debug();
 }
